@@ -84,28 +84,52 @@ NS_ASSUME_NONNULL_BEGIN
 
 #pragma mark - init UI
 
-- (BOOL)addCustomViews {
-    NSView *contentView         = [[NSApp mainWindow] contentView];
-    NSTextView *consoleTextView = [contentView descendantViewByClassName:@"IDEConsoleTextView"];
-    if (!consoleTextView) {
-        return NO;
+- (IDEConsoleTextView *)consoleViewInMainView:(NSView *)mainView
+{
+    for (NSView *childView in mainView.subviews) {
+        if ([childView isKindOfClass:NSClassFromString(@"IDEConsoleTextView")]) {
+            return (IDEConsoleTextView *)childView;
+        } else {
+            NSView *v = [self consoleViewInMainView:childView];
+            if ([v isKindOfClass:NSClassFromString(@"IDEConsoleTextView")]) {
+                return (IDEConsoleTextView *)v;
+            }
+        }
     }
-    DVTTextStorage *textStorage = [consoleTextView valueForKey:@"textStorage"];
-    if ([textStorage respondsToSelector:@selector(setConsoleStorage:)]) {
-        [textStorage setConsoleStorage:YES];
-    }
+    return nil;
+}
 
-    contentView          = [consoleTextView ancestralViewByClassName:@"DVTControllerContentView"];
-    NSView *scopeBarView = [contentView descendantViewByClassName:@"DVTScopeBarView"];
-    if (!scopeBarView) {
-        return NO;
+- (NSView *)scopeBarViewInView:(NSView *)view {
+    for (NSView *childView in view.subviews) {
+        if ([childView isKindOfClass:NSClassFromString(@"DVTScopeBarView")]) {
+            return childView;
+        } else {
+            NSView *v = [self scopeBarViewInView:childView];
+            if ([v isKindOfClass:NSClassFromString(@"DVTScopeBarView")]) {
+                return v;
+            }
+        }
+    }
+    return nil;
+}
+    
+- (BOOL)addCustomViews {
+    
+    for (NSWindow *window in [NSApp windows]) {
+        NSView *contentView = window.contentView;
+        IDEConsoleTextView *consoleTextView = [self consoleViewInMainView:contentView];
+        NSView *scopeBarView = nil;
+        NSView *parent = consoleTextView.superview;
+        while (!scopeBarView) {
+            if (!parent) break;
+            scopeBarView = [self scopeBarViewInView:parent];
+            parent = parent.superview;
+        }
+        
+        [self addLogLevelButtonItemsAt:scopeBarView defaultLogLevel:[[consoleTextView valueForKey:@"logMode"] intValue]];
+        [self addLogFilterPatternTextFieldAt:scopeBarView associateWith:consoleTextView];
     }
     
-
-    [self addLogLevelButtonItemsAt:scopeBarView defaultLogLevel:[[consoleTextView valueForKey:@"logMode"] intValue]];
-    [self addLogFilterPatternTextFieldAt:scopeBarView associateWith:consoleTextView];
-
-
     return YES;
 }
 
